@@ -2,26 +2,25 @@ import numpy as np
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 
-# --- Constants ---
-R_EARTH = 6_371_000      # Earth's mean radius, meters
-G_EARTH = 9.80665        # surface gravity, m/s^2
-GM      = 3.986004418e14 # gravitational parameter, m^3/s^2
+# Constants
+R_EARTH = 6_371_000      # Earth radius, [m]
+G_EARTH = 9.80665        # gravity, [m/s^2]
+GM  = 3.986004418e14 # gravitational parameter, [m^3/s^2]
 
-# --- Initial Conditions ---
-altitude_0  = 120_000    # entry interface, 120 km in meters
-velocity_0  = 7_800      # m/s horizontal at entry
+# Initial Conditions
+altitude_0  = 120_000    # entry altitude [m]
+velocity_0  = 7_800      # horizontal velocity at entry [m/s]
 
-# Position: place capsule directly above equator on the x-axis
+# Position:
 x0 = R_EARTH + altitude_0
 y0 = 0.0
 z0 = 0.0
 
-# Velocity: moving horizontally (along y-axis in ECI)
+# Velocity:
 vx0 = 0.0
 vy0 = velocity_0
 vz0 = 0.0
 
-# Pack into state vector
 state0 = np.array([x0, y0, z0, vx0, vy0, vz0])
 
 print("Initial state vector:")
@@ -29,12 +28,12 @@ print(f"  Position: ({x0/1000:.1f}, {y0:.1f}, {z0:.1f}) km")
 print(f"  Velocity: ({vx0:.1f}, {vy0:.1f}, {vz0:.1f}) m/s")
 print(f"  Altitude: {altitude_0/1000:.1f} km")
 
-# --- Capsule Properties ---
+# Capsule Properties
 MASS    = 12_000     # kg, approximate Dragon capsule mass
-CD      = 1.3        # drag coefficient (blunt body capsule)
+CD      = 1.3        # drag coefficient (blunt body)
 A_REF   = 10.0       # reference area m^2, approx heat shield diameter
 
-# -- Atmospheric Model --
+# Atmospheric Model
 
 def atmosphere_density(altitude):
 
@@ -49,21 +48,20 @@ def atmosphere_density(altitude):
     return rho_0 * np.exp(-altitude / H)
 
 def derivatives(t, state, cd=CD):
-    x, y, z, vx, vy, vz = state	# FOR READABILITY - used in r_vec and r_mag to make cleaner
+    x, y, z, vx, vy, vz = state	# Used in r_vec and r_mag to make cleaner
 
-    # --- Position vector and altitude ---
+    # Position vector and altitude
     r_vec = np.array([x, y, z])
     r_mag = np.linalg.norm(r_vec)          # distance from Earth's center
     altitude = r_mag - R_EARTH
 
-    # --- Gravity ---
-    # Points toward Earth's center (negative r direction)
+    # Gravity
+    # Points toward Earth's center (negative direction)
     g_vec = -(GM / r_mag**2) * (r_vec / r_mag)
 
-    # --- Atmosphere (US Standard, simple exponential) ---
-    rho = atmosphere_density(altitude)
+    rho = atmosphere_density(altitude) # Using atmospheric density model
 
-    # --- Aerodynamic drag ---
+    # Aerodynamic drag
     v_vec = np.array([vx, vy, vz])
     v_mag = np.linalg.norm(v_vec)
     v_hat = v_vec / v_mag                  # unit vector in velocity direction
@@ -71,12 +69,12 @@ def derivatives(t, state, cd=CD):
     drag_mag = 0.5 * rho * v_mag**2 * cd * A_REF
     drag_vec = -(drag_mag / MASS) * v_hat  # drag opposes velocity
 
-    # --- Total acceleration ---
+    # Total acceleration
     ax = g_vec[0] + drag_vec[0]
     ay = g_vec[1] + drag_vec[1]
     az = g_vec[2] + drag_vec[2]
 
-    # --- Return derivatives ---
+    # Return derivatives
     # d/dt [x, y, z, vx, vy, vz] = [vx, vy, vz, ax, ay, az]
     return [vx, vy, vz, ax, ay, az]
 
@@ -136,26 +134,26 @@ print(f"  Final speed:      {speed[-1]:.2f} km/s")
 fig, axes = plt.subplots(3, 1, figsize = (10, 12))
 fig.suptitle('Reentry Trajectory - 3DOF Simulation', fontsize = 14)
 
-# --- Plot 1: Altitude vs Time ---
+# Plot 1: Altitude vs Time
 axes[0].plot(sol.t, altitude, color='steelblue')
 axes[0].set_xlabel('Time (s)')
 axes[0].set_ylabel('Altitude (km)')
 axes[0].set_title('Altitude vs Time')
 axes[0].grid(True)
 
-# --- Plot 2: Speed vs Time ---
+# Plot 2: Speed vs Time
 axes[1].plot(sol.t, speed, color='coral')
 axes[1].set_xlabel('Time (s)')
 axes[1].set_ylabel('Speed (km/s)')
 axes[1].set_title('Speed vs Time')
 axes[1].grid(True)
 
-# --- Plot 3: Speed vs Altitude ---
+# Plot 3: Speed vs Altitude
 axes[2].plot(altitude, speed, color='purple')
 axes[2].set_xlabel('Altitude (km)')
 axes[2].set_ylabel('Speed (km/s)')
 axes[2].set_title('Speed vs Altitude')
-axes[2].invert_xaxis()   # flip so altitude decreases left to right
+axes[2].invert_xaxis()   # flip; altitude decreases left to right
 axes[2].grid(True)
 
 plt.tight_layout()
@@ -164,8 +162,8 @@ plt.show()
 
 print("\nPlot saved as reentry_trajectory.png")
 
-# --- Monte Carlo Setup ---
-N_RUNS = 500     # number of simulation runs
+# Monte Carlo
+N_RUNS = 500     # Number of simulations
 
 # Uncertainty (standard deviation) on initial conditions
 sigma_velocity  = 50      # m/s  — 1-sigma velocity uncertainty
@@ -173,7 +171,6 @@ sigma_altitude  = 2_000   # m    — 1-sigma altitude uncertainty
 sigma_cd        = 0.05    # drag coefficient uncertainty
 sigma_vz        = 50      # out of plane uncertainty
 
-# Store landing results
 landing_y   = []
 landing_z   = []
 landing_t   = []
@@ -182,17 +179,17 @@ print(f"\nRunning {N_RUNS} Monte Carlo simulations...")
 
 for i in range(N_RUNS):
 
-    # --- Perturb initial conditions ---
+    # Perturb initial conditions
     alt_perturbed = altitude_0 + np.random.normal(0, sigma_altitude)
     vel_perturbed = velocity_0 + np.random.normal(0, sigma_velocity)
     cd_perturbed  = CD + np.random.normal(0, sigma_cd)
     vz_perturbed  = np.random.normal(0, sigma_vz)
 
-    # --- New initial state ---
+    # New initial state
     x0_mc    = R_EARTH + alt_perturbed
     state_mc = np.array([x0_mc, 0.0, 0.0, 0.0, vel_perturbed, vz_perturbed])
 
-    # --- Integrate using a lambda to pass cd_perturbed ---
+    # Integrate using a lambda to pass cd_perturbed 
     sol_mc = solve_ivp(
         fun      = lambda t, s: derivatives(t, s, cd_perturbed),
         t_span   = (0, 2000),
@@ -202,7 +199,7 @@ for i in range(N_RUNS):
         events   = ground
     )
 
-    # --- Store landing position ---
+    # landing position
     landing_y.append(sol_mc.y[1, -1] / 1000)   # km
     landing_z.append(sol_mc.y[2, -1] / 1000)   # km
     landing_t.append(sol_mc.t[-1])
@@ -210,18 +207,16 @@ for i in range(N_RUNS):
     if (i + 1) % 50 == 0:
         print(f"  Completed {i + 1}/{N_RUNS} runs...")
 
-# --- Convert to arrays ---
 landing_y = np.array(landing_y)
 landing_z = np.array(landing_z)
 landing_t = np.array(landing_t)
 
-# --- Print Statistics ---
 print(f"\nMonte Carlo Results ({N_RUNS} runs):")
 print(f"  Landing Y — mean: {np.mean(landing_y):.1f} km  std: {np.std(landing_y):.1f} km")
 print(f"  Landing Z — mean: {np.mean(landing_z):.1f} km  std: {np.std(landing_z):.1f} km")
 print(f"  Landing time — mean: {np.mean(landing_t):.1f} s  std: {np.std(landing_t):.1f} s")
 
-# --- Plot Landing Ellipse ---
+# Plot Landing Ellipses
 fig, ax = plt.subplots(figsize=(10, 6))
 ax.scatter(landing_y, landing_z, alpha=0.3, s=10, color='steelblue', label='Landing points')
 ax.scatter(np.mean(landing_y), np.mean(landing_z), color='red', s=100, zorder=5, label='Mean landing point')
